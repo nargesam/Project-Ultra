@@ -25,11 +25,19 @@ conda activate enigma
 Please install the requiremenets from docs: 
 
 ```python
-pip install -r requirements.txt
+pip install -r docs/requirements.txt
 ```
 
 To check the model, run the notebooks/enigma_challenge.ipynb 
 
+
+
+## Model summary: 
+
+Reference-style: 
+![alt text][logo]
+
+[logo]: https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Logo Title Text 2"
 
 
 
