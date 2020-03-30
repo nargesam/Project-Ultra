@@ -34,6 +34,7 @@ class EnigmaDataset:
         return self._dataset
 
     def _generate_data(self, n_samples, seq_len=42, save_file=None):
+        # If dataset is not already created, generate dataset
         if save_file is not None and os.path.exists(save_file):
             enigma_data =  pd.read_csv(save_file, sep=",", header=0)
 
@@ -55,6 +56,7 @@ class EnigmaDataset:
         return self._test_data
 
     def test_train_split(self, n_test_samples, sent_partition_size, random_state=42):
+        # create test and train data
         df = self.dataset.copy()
 
         self._test_data = df.sample(
@@ -76,10 +78,17 @@ class EnigmaDataset:
         return self._test_data_partitioned
         
     def _divide_chunks(self, lst, n):
+        # for each seq of chars, return list of sequences with size of n
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
 
     def _test_train_partition(self, sent_partition_size):
+
+        """ because 43 seq of chars is long, this function partitions
+            every cipher/plain combo to at most len of sent_partition_size
+            to predict smaller sequences
+        """
+
         self._train_data_partitioned = self._partition_dataset(
             unpartitioned_dataset=self._train_data,
             sent_partition_size=sent_partition_size
@@ -91,6 +100,7 @@ class EnigmaDataset:
         )
 
     def _partition_dataset(self, unpartitioned_dataset, sent_partition_size):
+        # create a new dataframe with partitioned sequences 
         df = {
             'ID': [], 
             'PLAIN': [], 
@@ -118,7 +128,15 @@ class EnigmaDataset:
 
 
 class EncodedDataset:
-    def __init__(self, unencoded_dataset):   
+    def __init__(self, unencoded_dataset): 
+        """
+        This class calls the PlainTextEncoding and creates four different objects 
+        of the class. Using this class, you have access to 
+        Plain and Cipher list of test and train. 
+
+        unencoded_dataset: should be object of EnigmaDataset which gives us access to 
+                            all partitioned trian/test. 
+        """  
         self._unencoded_dataset = unencoded_dataset
         self._plain_train = self._get_plain_train()
         self._plain_test = self._get_plain_test()
@@ -130,6 +148,7 @@ class EncodedDataset:
         return self._plain_train
 
     def _get_plain_train(self):
+        # get object of PlainTextEncoding and input the partitioned train_data for plain
         sents = self._unencoded_dataset.train_data_partitioned['PLAIN'].tolist()
         obj = PlainTextEncoding(sentences=sents)
         return obj
@@ -139,6 +158,7 @@ class EncodedDataset:
         return self._cipher_train
 
     def _get_cipher_train(self):
+        # get object of PlainTextEncoding and input the partitioned train_data for Cipher
         sents = self._unencoded_dataset.train_data_partitioned['CIPHER'].tolist()
         obj = CipherTextEncoding(sentences=sents)
         return obj
@@ -148,6 +168,7 @@ class EncodedDataset:
         return self._plain_test
 
     def _get_plain_test(self):
+        # get object of PlainTextEncoding and input the partitioned test_data for Plain
         sents = self._unencoded_dataset.test_data_partitioned['PLAIN'].tolist()
         obj = PlainTextEncoding(sentences=sents)
         return obj
@@ -157,6 +178,7 @@ class EncodedDataset:
         return self._cipher_test
 
     def _get_cipher_test(self):
+        # get object of PlainTextEncoding and input the partitioned test_data for Cipher
         sents = self._unencoded_dataset.test_data_partitioned['CIPHER'].tolist()
         obj = CipherTextEncoding(sentences=sents)
         return obj
@@ -164,6 +186,14 @@ class EncodedDataset:
 
 class TextEncodingBase(ABC):
     def __init__(self, sentences):
+
+        """
+        This is an abstract class which creates properties of plain-cipher lists for test-train. 
+        The PlainTextEncoding subclass holds a method to create the one-hot vectors for plain and target. 
+        The CipherTextEncoding subclass holds a method to create the one-hot vectors for cipher. 
+
+
+        """
         self._sentences = sentences
         self._sentences_processed = None
 
@@ -184,10 +214,15 @@ class TextEncodingBase(ABC):
         return self._sentences
 
     @property
+    def n_samples(self):
+        return self._n_samples
+
+    @property
     def alphabet(self):
         return self._alphabet
 
     def _get_alphabet(self):
+        # get the distinct alphabet used in sentences of sentences_processed
         alpha = set()
         
         for sent in self.sentences_processed:
@@ -205,12 +240,26 @@ class TextEncodingBase(ABC):
     @abstractmethod
     def _process_sentences(self):
         raise NotImplementedError()
+    
+    @property
+    def max_sentence_len(self):
+        return self._max_sentence_len
+
+    @property
+    def index_to_char_lookup(self):
+        return self._index_to_char_lookup
+
+    @property
+    def char_to_index_lookup(self):
+        return self._char_to_index_lookup
 
     def _create_lookups(self):
-        # dictionary to index each english character - key is index and value is english character
+        # dictionary as a lookup table for index to character: 
+        # Key is index and value is alphabet in alphabets
         self._index_to_char_lookup = {}
 
-        # dictionary to get english character given its index - key is english character and value is index
+        # dictionary as a lookup table for index to character: 
+        # Key is each char in alphabet and value is index
         self._char_to_index_lookup = {}
 
         for k, v in enumerate(self.alphabet):
@@ -228,6 +277,8 @@ class TextEncodingBase(ABC):
 
 class PlainTextEncoding(TextEncodingBase):
     def _process_sentences(self):
+        # each plain sentence has '\t' as an indicator of the start of the sequence
+        # each plain sentence has '\n' as an indicator of the end of the sequence
         self._sentences_processed = [f"\t{x}\n" for x in self._sentences]
         self._target_vector = None
 
@@ -236,11 +287,13 @@ class PlainTextEncoding(TextEncodingBase):
         return self._target_vector
 
     def _encode_one_hot_vectors(self):
+        # One-hot vectors with 3D dimention
         self._input_vector = np.zeros(
             shape=(self._n_samples, self._max_sentence_len, len(self.alphabet)), 
             dtype='float32'
         )
-
+        
+        # One-hot vectors with 3D dimention
         self._target_vector = np.zeros(
             shape=(self._n_samples, self._max_sentence_len, len(self.alphabet)), 
             dtype='float32'
@@ -250,7 +303,7 @@ class PlainTextEncoding(TextEncodingBase):
             for k, ch in enumerate(self.sentences_processed[i]):
                 self._input_vector[i, k, self._char_to_index_lookup[ch]] = 1
 
-                # decoder_target_data will be ahead by one timestep and will not include the start character.
+                # target sequence will be ahead by one char and will not include the starting char.
                 if k > 0:
                     self._target_vector[i, k-1, self._char_to_index_lookup[ch]] = 1
 
@@ -270,8 +323,156 @@ class CipherTextEncoding(TextEncodingBase):
                 self._input_vector[i, k, self._char_to_index_lookup[ch]] = 1
 
 
-class EncoderModel:
+class UltraCodeBreaker:
+    def __init__(self, encoded_dataset):
+        """
+        This class creates LSTM encoder-decoder model to decode Cipher to Plain
+        """
+        self._encoded_dataset = encoded_dataset
+
+        self._model = None
+        self._encoder_model = None
+        self._encoder_model_inf = None
+        self._decoder_model = None
+        self._decoder_model_inf = None
+
+    @property
+    def model(self):
+        return self._model
+    
+    def _create_model(self, n_nodes=256):
+        # Encoder model
+        self._encoder_model = UltraEncoderModel(
+            cipher_text=self._encoded_dataset.cipher_train,
+            n_nodes=n_nodes
+        )
+
+        # Decoder model
+        self._decoder_model = UltraDecoderModel(
+            plain_text=self._encoded_dataset.plain_train,
+            encoder_states=self._encoder_model.states,
+            n_nodes=n_nodes
+        )
+
+        self._model = Model(
+            inputs=[
+                self._encoder_model.input, 
+                self._decoder_model.input
+            ],
+            outputs=[self._decoder_model.output]
+        )
+
+    def train(self, n_nodes=256, batch_size=256, epochs=100, validation_split=0.3):
+        # After creating the model, this LSTM sequential model will run for 100 epochs
+        # Split 30% the training data for validation set 
+        self._create_model(n_nodes=n_nodes)
+        self._model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy')
+
+        self._model.fit(
+            x=[
+                self._encoded_dataset.cipher_train.input_vector, 
+                self._encoded_dataset.plain_train.input_vector
+            ], 
+            y=self._encoded_dataset.plain_train.target_vector,
+            batch_size=batch_size,
+            epochs=epochs,
+            validation_split=validation_split
+        )
+
+    def create_test_model(self, n_nodes=256):
+        # Inference models for testing
+
+        # Encoder inference model
+        self._encoder_model_inf = Model(
+            self._encoder_model.input, 
+            self._encoder_model.states
+        )
+
+        # Decoder inference model
+        decoder_state_input_h = Input(shape=(n_nodes,))
+        decoder_state_input_c = Input(shape=(n_nodes,))
+        decoder_input_states = [decoder_state_input_h, decoder_state_input_c]
+
+        decoder_out, decoder_h, decoder_c = self._decoder_model.lstm(
+            self._decoder_model.input, 
+            initial_state=decoder_input_states
+        )
+
+        decoder_states = [decoder_h , decoder_c]
+        decoder_out = self._decoder_model.dense(decoder_out)
+
+        self._decoder_model_inf = Model(
+            inputs=[self._decoder_model.input] + decoder_input_states,
+            outputs=[decoder_out] + decoder_states
+        )
+
+    def _decode_seq(self, inp_seq):
+        # Given an input sequence, this fuctions predicts the cipher to plain
+        # Initial states value is coming from the encoder 
+        states_val = self._encoder_model_inf.predict(inp_seq)
+        
+        target_seq = np.zeros((1, 1, len(self._encoded_dataset.plain_test.alphabet)))
+        target_seq[0, 0, self._encoded_dataset.plain_test.char_to_index_lookup['\t']] = 1
+        
+        translated_sent = ''
+        stop_condition = False
+        
+        while not stop_condition:
+            decoder_out, decoder_h, decoder_c = self._decoder_model_inf.predict(x=[target_seq] + states_val)
+            
+            max_val_index = np.argmax(decoder_out[0,-1,:])
+            sampled_char = self._encoded_dataset.plain_test.index_to_char_lookup[max_val_index]
+            translated_sent += sampled_char
+            
+            # Stops if reached end of cipher or reached max len for given plain
+            if ( (sampled_char == '\n') or (len(translated_sent) >  self._encoded_dataset.plain_test.max_sentence_len)) :
+                stop_condition = True
+            
+            target_seq = np.zeros((1, 1, len(self._encoded_dataset.plain_test.alphabet)))
+            target_seq[0, 0, max_val_index] = 1
+            
+            states_val = [decoder_h, decoder_c]
+            
+        return translated_sent
+
+    def predict(self, save_file=None):
+        # if predictions exists, read the prediction file, otherwise predict for all cipher instances
+        if save_file is not None and os.path.exists(save_file):
+            self.predictions = pd.read_csv(save_file, sep=",", header=0)
+        else:
+            predictions_partitioned = []
+
+            for seq_index in range(self._encoded_dataset.cipher_test.n_samples):
+                inp_seq = self._encoded_dataset.cipher_test.input_vector[seq_index:seq_index+1]
+                translated_sent = self._decode_seq(inp_seq)
+                predictions_partitioned.append(translated_sent)
+            
+            # add all predictions to the partitioned test_data
+            self._encoded_dataset._unencoded_dataset.test_data_partitioned['DECRYPTED'] =\
+                                                     [x.strip() for x in predictions_partitioned]
+            
+            if save_file:
+                self._encoded_dataset._unencoded_dataset.test_data_partitioned.to_csv(save_file, index=False)
+
+            self.predictions = self._encoded_dataset._unencoded_dataset.test_data_partitioned
+            
+    def evaluate(self, save_file=None):
+        # merge all partitioned sequences by the index
+        predictions_joined = self.predictions.groupby(['ID'], as_index=False, sort=False) \
+            .agg(''.join)
+
+        if save_file:
+            predictions_joined.to_csv(save_file, index=False)
+
+        # calculate the score
+        evaluation_score = sc.score(list(predictions_joined['DECRYPTED']), list(predictions_joined['PLAIN']))
+
+        print(f'This model achives evaluation acc of {evaluation_score}')
+
+
+class UltraEncoderModel:
     def __init__(self, cipher_text, n_nodes=256):
+        # encoder model class
         self._n_nodes = n_nodes
 
         encoder_input = Input(shape=(None, len(cipher_text.alphabet)))
@@ -291,8 +492,9 @@ class EncoderModel:
         return self._states
 
 
-class DecoderModel:
+class UltraDecoderModel:
     def __init__(self, plain_text, encoder_states, n_nodes=256):
+        # decoder model class
         self._n_nodes = n_nodes
 
         decoder_input = Input(shape=(None, len(plain_text.alphabet)))
@@ -321,135 +523,3 @@ class DecoderModel:
     @property
     def dense(self):
         return self._dense
-
-
-class UltraCodeBreaker:
-    def __init__(self, plain_text, cipher_text):
-        self._plain_text = plain_text
-        self._cipher_text = cipher_text
-
-        self._model = None
-        self._encoder_model = None
-        self._encoder_model_inf = None
-        self._decoder_model = None
-        self._decoder_model_inf = None
-
-    @property
-    def model(self):
-        return self._model
-    
-    def _create_model(self, n_nodes=256):
-        self._encoder_model = EncoderModel(
-            cipher_text=self._cipher_text,
-            n_nodes=n_nodes
-        )
-
-        self._decoder_model = DecoderModel(
-            plain_text=self._plain_text,
-            encoder_states=self._encoder_model.states,
-            n_nodes=n_nodes
-        )
-
-        self._model = Model(
-            inputs=[
-                self._encoder_model.input, 
-                self._decoder_model.input
-            ],
-            outputs=[self._decoder_model.output]
-        )
-
-    def train(self, n_nodes=256, batch_size=256, epochs=100, validation_split=0.3):
-        self._create_model(n_nodes=n_nodes)
-        self._model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy')
-
-        self._model.fit(
-            x=[
-                self._cipher_text.input_vector, 
-                self._plain_text.input_vector
-            ], 
-            y=self._plain_text.target_vector,
-            batch_size=batch_size,
-            epochs=epochs,
-            validation_split=validation_split
-        )
-
-    def create_test_model(self, n_nodes=256):
-        # Inference models for testing
-
-        # Encoder inference model
-        self._encoder_model_inf = Model(
-            self._encoder_model.input, 
-            self._encoder_model.states
-        )
-
-        # Decoder inference model
-        decoder_state_input_h = Input(shape=(n_nodes,))
-        decoder_state_input_c = Input(shape=(n_nodes,))
-        decoder_input_states = [decoder_state_input_h, decoder_state_input_c]
-
-        decoder_out, decoder_h, decoder_c = self._decoder_model.lstm(
-            self._decoder_model.input, 
-            initial_state=decoder_input_states
-        )
-
-        decoder_states = [decoder_h , decoder_c]
-
-        decoder_out = self._decoder_model.dense(decoder_out)
-
-        self._decoder_model_inf = Model(
-            inputs=[self._decoder_model.input] + decoder_input_states,
-            outputs=[decoder_out] + decoder_states
-        )
-
-    def decode_seq(self, inp_seq):
-        # Initial states value is coming from the encoder 
-        states_val = self._encoder_model_inf.predict(inp_seq)
-        
-        target_seq = np.zeros((1, 1, len(self._plain_text.alphabet)))
-        target_seq[0, 0, fra_char_to_index_dict['\t']] = 1
-        
-        translated_sent = ''
-        stop_condition = False
-        
-        while not stop_condition:
-            
-            decoder_out, decoder_h, decoder_c = decoder_model_inf.predict(x=[target_seq] + states_val)
-            
-            max_val_index = np.argmax(decoder_out[0,-1,:])
-            sampled_fra_char = fra_index_to_char_dict[max_val_index]
-            translated_sent += sampled_fra_char
-            
-            if ( (sampled_fra_char == '\n') or (len(translated_sent) > max_len_fra_sent)) :
-                stop_condition = True
-            
-            target_seq = np.zeros((1, 1, len(fra_chars)))
-            target_seq[0, 0, max_val_index] = 1
-            
-            states_val = [decoder_h, decoder_c]
-            
-        return translated_sent
-
-    # def create_test_model(self):
-    #     # Inference models for testing
-
-    #     # Encoder inference model
-    #     self._encoder_model_inf = Model(self._encoder_input, self._encoder_states)
-
-    #     # Decoder inference model
-    #     decoder_state_input_h = Input(shape=(256,))
-    #     decoder_state_input_c = Input(shape=(256,))
-    #     decoder_input_states = [decoder_state_input_h, decoder_state_input_c]
-
-    #     decoder_out, decoder_h, decoder_c = self._decoder_lstm(
-    #         self._decoder_input, 
-    #         initial_state=decoder_input_states
-    #     )
-
-    #     decoder_states = [decoder_h , decoder_c]
-
-    #     decoder_out = self._decoder_dense(decoder_out)
-
-    #     self._decoder_model_inf = Model(
-    #         inputs=[self._decoder_input] + decoder_input_states,
-    #         outputs=[self._decoder_out] + decoder_states
-    #     )
