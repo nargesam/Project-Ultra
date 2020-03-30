@@ -1,4 +1,4 @@
-# Project-Ultra
+# Project Ultra
 A neural machine translation model to decipher enigma codes to plain english using an encoder-decoder sequential model. 
 
 I used a charachter level one-hot vector encoding and LSTM to decipher Enigma sequences to plain english. 
@@ -34,7 +34,7 @@ To check the model, run the notebooks/enigma_challenge.ipynb
 
 ## Model summary: 
 
-Reference-style: 
+Model Summary: 
 ![alt text][logo]
 
 [logo]: https://github.com/nargesam/Project-Ultra/blob/master/docs/model-summary.png "Model summary"
