@@ -1,3 +1,4 @@
+# This code was produced and provided by Scale Inc. as part of an Interview Data Challenge process. 
 from typing import List, Tuple
 from enigma.machine import EnigmaMachine
 from faker import Faker
